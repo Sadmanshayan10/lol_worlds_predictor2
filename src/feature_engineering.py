@@ -11,14 +11,17 @@ import warnings
 
 warnings.filterwarnings('ignore')
 
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PROCESSED_DIR = os.path.join(PROJECT_ROOT, 'data', 'processed')
+
 
 def load_data():
     """Load prepared data and ELO ratings."""
     # Load team-level match data
-    df = pd.read_csv('../data/processed/2026_data_prepared.csv')
+    df = pd.read_csv(os.path.join(PROCESSED_DIR, '2026_data_prepared.csv'))
 
     # Load ELO ratings
-    elo_df = pd.read_csv('../data/processed/2026_elo_ratings.csv')
+    elo_df = pd.read_csv(os.path.join(PROCESSED_DIR, '2026_elo_ratings.csv'))
 
     # Create ELO lookup dictionary
     elo_dict = dict(zip(elo_df['teamname'], elo_df['scaled_elo']))
@@ -207,9 +210,10 @@ def main():
     # ==========================================
     print("\n💾 STEP 4: Saving features...")
 
-    os.makedirs('../data/processed', exist_ok=True)
-    features_df.to_csv('../data/processed/2026_features.csv', index=False)
-    print(f"   ✅ Saved to: ../data/processed/2026_features.csv")
+    os.makedirs(PROCESSED_DIR, exist_ok=True)
+    output_path = os.path.join(PROCESSED_DIR, '2026_features.csv')
+    features_df.to_csv(output_path, index=False)
+    print(f"   ✅ Saved to: {output_path}")
 
     # ==========================================
     # SUMMARY

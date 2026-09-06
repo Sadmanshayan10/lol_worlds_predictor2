@@ -12,6 +12,10 @@ import os
 import warnings
 warnings.filterwarnings('ignore')
 
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PROCESSED_DIR = os.path.join(PROJECT_ROOT, 'data', 'processed')
+RESULTS_DIR = os.path.join(PROJECT_ROOT, 'results')
+
 # ==========================================
 # WORLDS 2026 TEAMS (20 Teams)
 # ==========================================
@@ -28,9 +32,9 @@ WORLDS_TEAMS = {
 
 def load_model_and_data():
     """Load the trained model and feature data."""
-    df = pd.read_csv('../data/processed/2026_features.csv')
-    raw_df = pd.read_csv('../data/processed/2026_data_prepared.csv')
-    elo_df = pd.read_csv('../data/processed/2026_elo_ratings.csv')
+    df = pd.read_csv(os.path.join(PROCESSED_DIR, '2026_features.csv'))
+    raw_df = pd.read_csv(os.path.join(PROCESSED_DIR, '2026_data_prepared.csv'))
+    elo_df = pd.read_csv(os.path.join(PROCESSED_DIR, '2026_elo_ratings.csv'))
     elo_dict = dict(zip(elo_df['teamname'], elo_df['scaled_elo']))
 
     # ==========================================
@@ -222,14 +226,15 @@ def main():
     # STEP 5: SAVE
     # ==========================================
     print("\n💾 STEP 5: Saving results...")
-    os.makedirs('../results', exist_ok=True)
+    os.makedirs(RESULTS_DIR, exist_ok=True)
 
     results_df = pd.DataFrame([
         {'Team': team, 'Wins': wins, 'Win_Percentage': wins / total * 100}
         for team, wins in sorted_results
     ])
-    results_df.to_csv('../results/worlds_prediction_full.csv', index=False)
-    print("   ✅ Saved: ../results/worlds_prediction_full.csv")
+    output_path = os.path.join(RESULTS_DIR, 'worlds_prediction_full.csv')
+    results_df.to_csv(output_path, index=False)
+    print(f"   ✅ Saved: {output_path}")
 
     print("\n" + "=" * 70)
     print("✅ PHASE 5 COMPLETE!")

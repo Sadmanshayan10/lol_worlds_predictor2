@@ -24,6 +24,9 @@ data/processed/
 *.xlsx
 *.parquet
 
+# Generated result artifacts
+results/*.png
+
 # Jupyter notebooks
 .ipynb_checkpoints/
 *.ipynb

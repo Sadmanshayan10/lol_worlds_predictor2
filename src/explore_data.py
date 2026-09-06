@@ -11,6 +11,19 @@ import pandas as pd
 import os
 from datetime import datetime
 
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+RAW_DIR = os.path.join(PROJECT_ROOT, 'data', 'raw')
+
+
+def find_raw_file():
+    """Find the raw Oracle's Elixir data file in data/raw/."""
+    if not os.path.exists(RAW_DIR):
+        return None
+    for file in os.listdir(RAW_DIR):
+        if 'LoL_esports_match_data' in file and file.endswith('.csv'):
+            return os.path.join(RAW_DIR, file)
+    return None
+
 
 def main():
     print("=" * 70)
@@ -21,10 +34,10 @@ def main():
     # LOAD RAW DATA
     # ==========================================
     print("\n📂 Loading raw data...")
-    raw_path = '../data/raw/2026_LoL_esports_match_data_from_OraclesElixir.csv'
+    raw_path = find_raw_file()
 
-    if not os.path.exists(raw_path):
-        print(f"   ❌ File not found: {raw_path}")
+    if raw_path is None:
+        print(f"   ❌ No Oracle's Elixir data found in {RAW_DIR}")
         print("   Please make sure the file is in data/raw/")
         return
 

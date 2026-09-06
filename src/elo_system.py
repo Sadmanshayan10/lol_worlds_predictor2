@@ -11,6 +11,9 @@ warnings.filterwarnings('ignore')
 # ==========================================
 # CONFIGURATION
 # ==========================================
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PROCESSED_DIR = os.path.join(PROJECT_ROOT, 'data', 'processed')
+
 BASE_ELO = 1200
 K_BASE = 32
 
@@ -43,7 +46,7 @@ def main():
     # STEP 1: LOAD DATA
     # ==========================================
     print("\n📂 STEP 1: Loading prepared data...")
-    data_path = '../data/processed/2026_data_prepared.csv'
+    data_path = os.path.join(PROCESSED_DIR, '2026_data_prepared.csv')
     if not os.path.exists(data_path):
         print(f"   ❌ File not found: {data_path}")
         return
@@ -142,9 +145,10 @@ def main():
     # STEP 7: SAVE
     # ==========================================
     print("\n💾 STEP 7: Saving results...")
-    os.makedirs('../data/processed', exist_ok=True)
-    ratings_df.to_csv('../data/processed/2026_elo_ratings.csv', index=False)
-    print("   ✅ Saved: ../data/processed/2026_elo_ratings.csv")
+    os.makedirs(PROCESSED_DIR, exist_ok=True)
+    output_path = os.path.join(PROCESSED_DIR, '2026_elo_ratings.csv')
+    ratings_df.to_csv(output_path, index=False)
+    print(f"   ✅ Saved: {output_path}")
 
     print("\n" + "=" * 70)
     print("✅ PHASE 2 COMPLETE!")
