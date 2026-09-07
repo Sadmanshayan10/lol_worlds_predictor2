@@ -24,8 +24,9 @@ data/processed/
 *.xlsx
 *.parquet
 
-# Generated result artifacts
+# Generated result artifacts (but keep the calibration plot, it's in the README)
 results/*.png
+!results/calibration_plot.png
 
 # Jupyter notebooks
 .ipynb_checkpoints/

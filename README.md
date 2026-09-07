@@ -8,10 +8,11 @@
 
 This project builds an end-to-end prediction system for the League of Legends World Championship. Using professional match data from Oracle's Elixir, we:
 
-1. **Build a dual ELO system** (regional + meta ratings)
+1. **Build a league-strength-adjusted ELO system** (K-factor scaled by region strength; larger updates for international games)
 2. **Engineer pre-game features** (form, streaks, head-to-head)
-3. **Train machine learning models** to predict match outcomes
-4. **Simulate the Worlds 2026 tournament** to predict the champion
+3. **Train and compare machine learning models** on a temporal split to predict match outcomes
+4. **Simulate the Worlds 2026 tournament** to estimate each team's title odds
+5. **Backtest** the whole pipeline against Worlds 2023-2025
 
 ---
 
@@ -39,28 +40,29 @@ This project builds an end-to-end prediction system for the League of Legends Wo
 
 ## Project Structure
 
-lol_worLds_predictor2/
+```
+lol_worlds_predictor2/
 ├── data/
-│ ├── raw/ # Original Oracle's Elixir data
-│ └── processed/ # Cleaned and engineered data
+│   ├── raw/                      # Original Oracle's Elixir data (gitignored)
+│   └── processed/                # Cleaned and engineered data (gitignored)
 ├── src/
-│ ├── config.py # Configuration settings
-│ ├── data_preparation.py # Phase 1: Clean and aggregate data
-│ ├── elo_system.py # Phase 2: Build ELO ratings
-│ ├── feature_engineering.py # Phase 3: Create features
-│ ├── model_training.py # Phase 4: Train and compare models
-│ ├── tournament_simulation.py # Phase 5: Simulate Worlds
-│ └── backtest.py # Walk-forward backtest vs. Worlds 2023-2025
+│   ├── config.py                 # Configuration settings
+│   ├── explore_data.py           # Quick look at the raw data
+│   ├── data_preparation.py       # Phase 1: Clean and aggregate data
+│   ├── elo_system.py             # Phase 2: Build ELO ratings
+│   ├── feature_engineering.py    # Phase 3: Create features
+│   ├── model_training.py         # Phase 4: Train and compare models
+│   ├── tournament_simulation.py  # Phase 5: Simulate Worlds
+│   └── backtest.py               # Walk-forward backtest vs. Worlds 2023-2025
 ├── results/
-│ ├── model_comparison.csv # Model accuracy comparison
-│ ├── calibration_plot.png # Reliability curve for the best model
-│ ├── backtest_summary.csv # Walk-forward backtest results
-│ └── worlds_prediction.csv # Champion probabilities
-├── images/ # Screenshots and visualizations
-├── requirements.txt # Python dependencies
-├── .gitignore # Files to exclude from Git
-└── README.md # Project documentation
-
+│   ├── model_comparison.csv      # Model accuracy / calibration comparison
+│   ├── calibration_plot.png      # Reliability curve for the best model
+│   ├── backtest_summary.csv      # Walk-forward backtest results
+│   └── worlds_prediction_full.csv # Champion probabilities
+├── requirements.txt              # Python dependencies
+├── .gitignore                    # Files to exclude from Git
+└── README.md                     # Project documentation
+```
 
 ---
 
@@ -72,13 +74,13 @@ lol_worLds_predictor2/
 
 | Step | Description |
 |------|-------------|
-| 1 | Load raw Oracle's Elixir data (71,232 rows, 165 columns) |
-| 2 | Filter to major regions (LCK, LPL, LEC, LCS, CBLOL, LCP) |
-| 3 | Tag international matches (FST, EWC, MSI) |
+| 1 | Load raw Oracle's Elixir data (100,128 rows, 165 columns) |
+| 2 | Tag international matches (FST, EWC, MSI) |
+| 3 | Filter to major regions (LCK, LPL, LEC, LCS, CBLOL, LCP) plus the international events |
 | 4 | Aggregate from player-level to team-level |
 | 5 | Handle missing values (fill objectives with 0) |
 | 6 | Sort chronologically for time-series processing |
-| 7 | Save prepared data (4,456 rows, 35 columns) |
+| 7 | Save prepared data (5,160 rows, 35 columns) |
 
 **Key Decision:** Only include teams from regions that qualify for Worlds. This ensures the model focuses on relevant data.
 
@@ -89,9 +91,11 @@ lol_worLds_predictor2/
 **Goal:** Assign a dynamic strength rating to every team.
 
 **How ELO Works:**
-Expected Score = 1 / (1 + 10^((R_opponent - R_team) / 400))
-New Rating = R_team + K * (Actual_Result - Expected_Score)
 
+```
+Expected Score = 1 / (1 + 10^((R_opponent - R_team) / 400))
+New Rating      = R_team + K * (Actual_Result - Expected_Score)
+```
 
 **Key Parameters:**
 
@@ -114,11 +118,16 @@ New Rating = R_team + K * (Actual_Result - Expected_Score)
 
 **League Strength Adjustment:**
 
-For domestic matches, the K-factor is adjusted based on the average strength of both teams:
-avg_strength = (team_strength + opp_strength) / 2
-K = K_BASE * avg_strength
+For domestic matches, the K-factor is scaled by the average strength of the
+two teams' leagues:
 
-This ensures that wins in stronger regions (LCK) are worth more than wins in weaker regions (LCP).
+```
+avg_strength = (team_strength + opp_strength) / 2
+K            = K_BASE * avg_strength
+```
+
+So wins in stronger regions (LCK) move ratings more than wins in weaker
+regions (LCP).
 
 **Output:** ELO ratings for all 63 teams in the dataset, scaled to 1000-1600 range.
 
@@ -127,15 +136,15 @@ This ensures that wins in stronger regions (LCK) are worth more than wins in wea
 | Rank | Team | League | ELO |
 |------|------|--------|-----|
 | 1 | Bilibili Gaming | LPL | 1600 |
-| 2 | T1 | LCK | 1506 |
-| 3 | Gen.G | LCK | 1502 |
-| 4 | Hanwha Life Esports | LCK | 1435 |
-| 5 | G2 Esports | LEC | 1419 |
-| 6 | Karmine Corp | LEC | 1394 |
-| 7 | Anyone's Legend | LPL | 1336 |
-| 8 | Dplus Kia | LCK | 1329 |
-| 9 | Team Liquid | LCS | 1316 |
-| 10 | LØS | CBLOL | 1312 |
+| 2 | Gen.G | LCK | 1512 |
+| 3 | T1 | LCK | 1445 |
+| 4 | Hanwha Life Esports | LCK | 1409 |
+| 5 | Karmine Corp | LEC | 1393 |
+| 6 | G2 Esports | LEC | 1393 |
+| 7 | Dplus Kia | LCK | 1311 |
+| 8 | Anyone's Legend | LPL | 1308 |
+| 9 | Team Liquid | LCS | 1295 |
+| 10 | LYON | LCS | 1291 |
 
 ---
 
@@ -158,10 +167,10 @@ This ensures that wins in stronger regions (LCK) are worth more than wins in wea
 
 | Feature | Correlation | Strength |
 |---------|-------------|----------|
-| h2h_win_rate | **0.535** | Strongest |
-| elo_diff | **0.343** | Second strongest |
-| team1_form_5 | 0.129 | Weak |
-| team2_form_5 | -0.177 | Weak (negative) |
+| h2h_win_rate | **0.508** | Strongest |
+| elo_diff | **0.333** | Second strongest |
+| team2_form_5 | -0.164 | Weak (negative) |
+| team1_form_5 | 0.130 | Weak |
 
 ---
 
@@ -169,20 +178,27 @@ This ensures that wins in stronger regions (LCK) are worth more than wins in wea
 
 **Goal:** Find the best model for predicting match outcomes.
 
-**Models Tested:**
+**Train/test split:** temporal, not random. The 2,580 feature rows are sorted
+by date; the model trains on the earliest 80% (2,064 matches through
+2026-08-01) and is tested on the most recent 20% (516 matches, 2026-08-01 to
+2026-09-05). This is the honest setup for a forecasting task: the model never
+sees a future match at training time. A random split leaks future information
+and inflates Logistic Regression accuracy from 66.9% to about 71%.
+
+**Models Tested (temporal split):**
 
 | Model | Accuracy | Verdict |
 |-------|----------|---------|
-| **Logistic Regression** | **71.08%** | **Best Model** |
-| Random Forest | 69.06% | Good |
-| XGBoost | 67.94% | Good |
+| **Logistic Regression** | **66.86%** | **Best Model** |
+| Random Forest | 64.73% | Good |
+| XGBoost | 62.40% | Good |
 
 **Why Logistic Regression Won:**
 
 | Reason | Explanation |
 |--------|-------------|
-| Small dataset | 2,228 rows is small for complex models |
-| Linear relationships | Features have linear relationships with winning |
+| Small dataset | 2,580 rows is small for complex models |
+| Linear relationships | Features have roughly linear relationships with winning |
 | No overfitting | Logistic Regression generalizes better |
 | Feature engineering | Heavy lifting was already done |
 
@@ -194,14 +210,14 @@ before fitting, so the coefficients below are on a comparable scale even though
 
 | Feature | Std. Coefficient | Impact |
 |---------|------------------|--------|
-| h2h_win_rate | 1.38 | Most important |
-| team2_form_10 | -0.12 | Second most important |
-| elo_diff | -0.10 | Third most important |
-| team2_streak | 0.05 | Minimal impact |
-| team2_form_5 | 0.05 | Minimal impact |
-| team1_streak | -0.01 | Minimal impact |
-| team1_form_5 | 0.00 | Minimal impact |
-| team1_form_10 | 0.00 | Minimal impact |
+| h2h_win_rate | 1.41 | Most important |
+| team2_form_10 | -0.19 | Second most important |
+| team2_form_5 | 0.13 | Third most important |
+| elo_diff | -0.10 | Small |
+| team1_streak | -0.08 | Minimal impact |
+| team1_form_5 | 0.05 | Minimal impact |
+| team1_form_10 | 0.04 | Minimal impact |
+| team2_streak | 0.00 | Minimal impact |
 
 **Key Insight:** Head-to-head win rate is by far the most important feature. This suggests that matchup-specific history matters more than overall team strength.
 
@@ -215,12 +231,17 @@ save a reliability curve for the best model to `results/calibration_plot.png`.
 
 | Model | Brier | Log Loss |
 |-------|-------|----------|
-| **Logistic Regression** | **0.179** | **0.530** |
-| Random Forest | 0.186 | 0.551 |
-| XGBoost | 0.197 | 0.577 |
+| **Logistic Regression** | **0.198** | **0.574** |
+| Random Forest | 0.205 | 0.594 |
+| XGBoost | 0.220 | 0.631 |
 
 Logistic Regression has the best-calibrated probabilities as well as the best
 accuracy, so it's the one used for the tournament simulation.
+
+![Calibration curve for Logistic Regression](results/calibration_plot.png)
+
+The curve roughly follows the diagonal but is noisy (the test set is only 516
+matches), with some over-confidence at the low end and a dip near 0.75.
 
 ---
 
@@ -305,33 +326,45 @@ python src/backtest.py 2000      # optional: fewer simulations, faster
 
 ## Results
 
-### Model Performance
+### Model Performance (temporal test set, 516 matches)
 
 | Model | Accuracy | Brier | Log Loss |
 |-------|----------|-------|----------|
-| **Logistic Regression** | **71.08%** | **0.179** | **0.530** |
-| Random Forest | 69.06% | 0.186 | 0.551 |
-| XGBoost | 67.94% | 0.197 | 0.577 |
+| **Logistic Regression** | **66.86%** | **0.198** | **0.574** |
+| Random Forest | 64.73% | 0.205 | 0.594 |
+| XGBoost | 62.40% | 0.220 | 0.631 |
 
 Brier and log loss are probability-quality metrics (lower is better).
 Reliability curve for the best model: `results/calibration_plot.png`.
 
 ### World Champion Probabilities (10,000 Simulations)
 
+Only the eight teams seeded into the bracket (top 8 by ELO) can win under the
+current simulation format, so the probabilities below sum to 100% across
+those eight.
+
 | Team | Region | Win Probability |
 |------|--------|-----------------|
-| **Gen.G** | LCK | **25.62%** |
-| **Hanwha Life Esports** | LCK | **21.46%** |
-| **Anyone's Legend** | LPL | **16.01%** |
-| **T1** | LCK | **14.58%** |
-| **Bilibili Gaming** | LPL | **9.81%** |
-| **Dplus Kia** | LCK | **8.51%** |
-| **Karmine Corp** | LEC | **3.25%** |
-| **G2 Esports** | LEC | **0.76%** |
+| **Dplus Kia** | LCK | **24.58%** |
+| **Bilibili Gaming** | LPL | **23.66%** |
+| **Hanwha Life Esports** | LCK | **16.54%** |
+| **G2 Esports** | LEC | **11.65%** |
+| **Karmine Corp** | LEC | **6.32%** |
+| **Gen.G** | LCK | **6.26%** |
+| **Anyone's Legend** | LPL | **5.55%** |
+| **T1** | LCK | **5.44%** |
+
+These numbers are volatile: the model leans heavily on head-to-head history,
+so a few lopsided past matchups swing the bracket. The backtest below shows
+this framing has not actually called a past Worlds champion correctly, so
+treat the table as a rough prior rather than a real forecast.
 
 ### Key Insight
 
-**Head-to-head win rate** was the most important predictor, followed by ELO difference. This suggests that matchup-specific history matters more than overall team strength.
+**Head-to-head win rate** was the most important predictor, followed by
+opponent recent form. This is also a weakness: at Worlds, where teams rarely
+have meaningful head-to-head history, the feature adds noise more than signal
+(see the backtest).
 
 ---
 
@@ -340,8 +373,8 @@ Reliability curve for the best model: `results/calibration_plot.png`.
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/Sadmanshayan10/lol_worLds_predictor2.git
-cd lol_worLds_predictor2
+git clone https://github.com/Sadmanshayan10/lol_worlds_predictor2.git
+cd lol_worlds_predictor2
 ```
 
 ### 2. Set Up Virtual Environment
@@ -360,8 +393,10 @@ pip install -r requirements.txt
 
 ### 4. Download Data
 
-- Download 2026 data from Oracle's Elixir
+- Download the 2026 season file from [Oracle's Elixir](https://oracleselixir.com/tools/downloads)
 - Place it in `data/raw/`
+- If you also drop in the 2023-2025 files for the backtest, the main
+  pipeline still uses the most recent season (highest year in the filename).
 
 ### 5. Run the Pipeline
 
@@ -397,21 +432,18 @@ python src/backtest.py
 This walk-forward backtests the pipeline against Worlds 2023-2025 and writes
 `results/backtest_summary.csv`. See **Backtest / Validation** above.
 
+---
+
 ## License
 
 MIT
 
-Author
+## Author
 
-Sadmanshayan
+Sadmanshayan ([GitHub](https://github.com/Sadmanshayan10))
 
-Acknowledgments
+## Acknowledgments
 
-Oracle's Elixir for providing the data
-Riot Games for the game
-Scikit-learn, XGBoost, and Pandas developers
-
-Contact
-
-GitHub: https://github.com/Sadmanshayan10
-⭐ If you found this project useful, please star the repository!
+- [Oracle's Elixir](https://oracleselixir.com/) for the match data
+- Riot Games for the game
+- The scikit-learn, XGBoost, and pandas maintainers

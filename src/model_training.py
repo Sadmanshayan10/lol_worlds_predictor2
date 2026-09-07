@@ -8,7 +8,6 @@ Phase 4: Model Training
 import os
 import pandas as pd
 import numpy as np
-from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import RandomForestClassifier
@@ -237,19 +236,21 @@ def main():
     # STEP 2: PREPARE FEATURES
     # ==========================================
     print("\n🔧 STEP 2: Preparing features...")
+    # Sort chronologically so the split below is temporal, not random.
+    df = df.sort_values('date').reset_index(drop=True)
     X, y, feature_cols = prepare_features(df)
     print(f"   ✅ Features: {feature_cols}")
     print(f"   ✅ Target: result (1 = team1 wins)")
 
     # ==========================================
-    # STEP 3: TRAIN/TEST SPLIT
+    # STEP 3: TEMPORAL TRAIN/TEST SPLIT
     # ==========================================
-    print("\n🔀 STEP 3: Splitting into train/test...")
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42
-    )
-    print(f"   ✅ Train: {len(X_train):,} rows")
-    print(f"   ✅ Test: {len(X_test):,} rows")
+    print("\n🔀 STEP 3: Temporal split (earliest 80% train, most recent 20% test)...")
+    split_idx = int(len(df) * 0.8)
+    X_train, X_test = X.iloc[:split_idx], X.iloc[split_idx:]
+    y_train, y_test = y.iloc[:split_idx], y.iloc[split_idx:]
+    print(f"   ✅ Train: {len(X_train):,} rows (through {df['date'].iloc[split_idx - 1][:10]})")
+    print(f"   ✅ Test:  {len(X_test):,} rows (from {df['date'].iloc[split_idx][:10]})")
 
     # ==========================================
     # STEP 4: TRAIN MODELS

@@ -9,6 +9,7 @@ Data Exploration Script
 
 import pandas as pd
 import os
+import re
 from datetime import datetime
 
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -16,13 +17,25 @@ RAW_DIR = os.path.join(PROJECT_ROOT, 'data', 'raw')
 
 
 def find_raw_file():
-    """Find the raw Oracle's Elixir data file in data/raw/."""
+    """Find the raw Oracle's Elixir data file in data/raw/.
+
+    If the older yearly files (2023-2025) are also present for backtest.py,
+    pick the one with the highest leading year (the current Worlds season).
+    """
     if not os.path.exists(RAW_DIR):
         return None
-    for file in os.listdir(RAW_DIR):
-        if 'LoL_esports_match_data' in file and file.endswith('.csv'):
-            return os.path.join(RAW_DIR, file)
-    return None
+    candidates = [
+        f for f in os.listdir(RAW_DIR)
+        if 'LoL_esports_match_data' in f and f.endswith('.csv')
+    ]
+    if not candidates:
+        return None
+
+    def year_of(name):
+        m = re.match(r'(\d{4})', name)
+        return int(m.group(1)) if m else -1
+
+    return os.path.join(RAW_DIR, max(candidates, key=year_of))
 
 
 def main():

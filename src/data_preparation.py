@@ -12,6 +12,7 @@ Phase 1: Data Preparation (2026)
 import pandas as pd
 import numpy as np
 import os
+import re
 from datetime import datetime
 
 # ==========================================
@@ -29,15 +30,27 @@ MAJOR_LEAGUES = ['LPL', 'LCK', 'LEC', 'LCS', 'CBLOL', 'LCP']
 INTERNATIONAL_LEAGUES = ['FST', 'EWC', 'MSI']
 
 def find_raw_file():
-    """Find the raw data file in data/raw/"""
+    """Find the raw data file in data/raw/.
+
+    The older yearly files (2023-2025) may also be present for backtest.py,
+    so pick the one with the highest leading year: the main pipeline always
+    targets the current Worlds season.
+    """
     raw_dir = DATA_PATHS['raw']
     if not os.path.exists(raw_dir):
         return None
-    files = os.listdir(raw_dir)
-    for file in files:
-        if 'LoL_esports_match_data' in file and file.endswith('.csv'):
-            return os.path.join(raw_dir, file)
-    return None
+    candidates = [
+        f for f in os.listdir(raw_dir)
+        if 'LoL_esports_match_data' in f and f.endswith('.csv')
+    ]
+    if not candidates:
+        return None
+
+    def year_of(name):
+        m = re.match(r'(\d{4})', name)
+        return int(m.group(1)) if m else -1
+
+    return os.path.join(raw_dir, max(candidates, key=year_of))
 
 def main():
     print("=" * 70)
